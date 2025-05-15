@@ -5,18 +5,22 @@ set -e
 if [ "$1" == "local" ]; then
   # Default service to test
   SERVICE=${2:-lambda}
-
+  
+  # Determine the invocation type based on service name
+  INVOCATION_TYPE="Function URL"
+  if [[ "$SERVICE" == *"-api"* ]]; then
+    INVOCATION_TYPE="API Gateway"
+  fi
+  
   # Print service info
-  echo "Testing Lambda function in local '$SERVICE' service..."
-
-  # Use docker compose exec to invoke the Lambda function within the container
-  docker compose exec "$SERVICE" \
-    curl -s -X POST "http://localhost:8080/2015-03-31/functions/function/invocations" \
-    -d '{}' || echo "Failed to invoke Lambda function"
+  echo "Testing Lambda function in local '$SERVICE' service via HTTP $INVOCATION_TYPE..."
+  
+  # Use the curlimages/curl container to send a request to the service
+  docker run --rm --network bref-php-pdo-pgsql-example_default curlimages/curl -s -X POST "http://$SERVICE:8000/" -d '{}'
 
   echo ""
   echo "To view logs:"
-  echo "./logs.sh"
+  echo "./logs.sh local $SERVICE"
 else
   # Check if the environment variables file exists
   ENV_FILE=".env"
@@ -41,6 +45,9 @@ else
   # Invoke the Lambda function in AWS
   echo "Invoking Lambda function in AWS..."
   serverless invoke -f pdo-pgsql-test -d '{}'
+  
+  # Note: You can also access the function via its URL after deployment with:
+  # serverless info --verbose | grep -A 1 "pdo-pgsql-test" | grep "URL:" | awk '{print $2}'
 
   echo ""
   echo "To view logs:"

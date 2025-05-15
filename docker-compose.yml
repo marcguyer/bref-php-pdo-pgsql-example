@@ -12,6 +12,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    tmpfs:
+      - /var/lib/postgresql/data # use tmpfs to avoid disk space issues
 
   # Lambda container using architecture detected by detect-arch.sh
   lambda:
@@ -28,12 +30,7 @@ services:
       DB_NAME: postgres
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
-      HANDLER: index.php
-      _HANDLER: index.php
-      # RIE debug environment variables
-      AWS_LAMBDA_RUNTIME_API_DEBUG: "1"
-      RAPID_DEBUG: "1"
-      AWS_LAMBDA_DEBUG_LOG: "/tmp/lambda-debug.log"
+      HANDLER: function-url-handler.php
     volumes:
       - .:/var/task
 
@@ -52,11 +49,46 @@ services:
       DB_NAME: postgres
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
-      HANDLER: index.php
-      _HANDLER: index.php
-      # RIE debug environment variables
-      AWS_LAMBDA_RUNTIME_API_DEBUG: "1"
-      RAPID_DEBUG: "1"
-      AWS_LAMBDA_DEBUG_LOG: "/tmp/lambda-debug.log"
+      HANDLER: function-url-handler.php
     volumes:
       - .:/var/task
+      
+  # Lambda FPM container for API Gateway testing (native architecture)
+  lambda-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    platform: ${LAMBDA_PLATFORM:-linux/arm64}  # Default to ARM64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      HANDLER: api-handler.php
+    volumes:
+      - .:/var/task
+    tty: true    # Allocate a TTY for bref-dev-server
+      
+  # Lambda FPM container for API Gateway testing (x86_64 emulation)
+  lambda-api-x86:
+    build:
+      context: .
+      dockerfile: Dockerfile.api.x86
+    platform: linux/amd64  # Always x86_64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      HANDLER: api-handler.php
+    volumes:
+      - .:/var/task
+    tty: true    # Allocate a TTY for bref-dev-server

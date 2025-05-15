@@ -1,28 +1,17 @@
 <?php
 declare(strict_types=1);
 
-// Simple handler to test PDO PostgreSQL segfault issue
-error_log('LAMBDA DEBUG: Starting handler execution');
-
-// First, load the autoloader
-try {
-    require __DIR__ . '/vendor/autoload.php';
-    error_log('LAMBDA DEBUG: Autoloader loaded successfully');
-} catch (\Throwable $e) {
-    error_log('LAMBDA DEBUG: Failed to load autoloader: ' . $e->getMessage());
-    throw $e;
-}
-
-use Bref\Context\Context;
-use Bref\Event\Handler;
+namespace App;
 
 /**
- * Handler to reproduce PDO PostgreSQL segfault observed in Bref/Lambda environments
- * This implementation is very aggressive in attempting to trigger the segfault
+ * Core PDO testing logic that can be used by different handlers
  */
-class PdoSegfaultHandler implements Handler
+class PdoTester
 {
-    public function handle($event, Context $context): array
+    /**
+     * Run the PDO PostgreSQL tests and return the result
+     */
+    public function runTests(): array
     {
         try {
             // Get database connection parameters
@@ -37,21 +26,20 @@ class PdoSegfaultHandler implements Handler
             
             // Get the PDO::PGSQL_ATTR_DISABLE_PREPARES value
             $isPgSqlAttrDefined = defined('PDO::PGSQL_ATTR_DISABLE_PREPARES');
-            $pgSqlAttrValue = $isPgSqlAttrDefined ? PDO::PGSQL_ATTR_DISABLE_PREPARES : 1000;
+            $pgSqlAttrValue = $isPgSqlAttrDefined ? \PDO::PGSQL_ATTR_DISABLE_PREPARES : 1000;
             
             error_log("LAMBDA DEBUG: PDO::PGSQL_ATTR_DISABLE_PREPARES defined: " . ($isPgSqlAttrDefined ? 'Yes' : 'No'));
             error_log("LAMBDA DEBUG: PDO::PGSQL_ATTR_DISABLE_PREPARES value: $pgSqlAttrValue");
             
-            // ======== SEGFAULT TRIGGER ATTEMPT 1 ========
-            // Create multiple PDO connections and set attributes directly
+            // ======== TEST 1: CREATE MULTIPLE CONNECTIONS ========
             error_log('LAMBDA DEBUG: Creating multiple PDO connections...');
             $connections = [];
             $results = [];
             
             // Create 5 connections in parallel
             for ($i = 0; $i < 5; $i++) {
-                $connections[$i] = new PDO($dsn, $username, $password);
-                $connections[$i]->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                $connections[$i] = new \PDO($dsn, $username, $password);
+                $connections[$i]->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
                 
                 // Directly set the PostgreSQL attribute to different values on each connection
                 $value = ($i % 2 == 0);
@@ -66,7 +54,7 @@ class PdoSegfaultHandler implements Handler
                     } else if ($i === 2) {
                         // Third connection: Use directly if defined
                         if (defined('PDO::PGSQL_ATTR_DISABLE_PREPARES')) {
-                            $connections[$i]->setAttribute(PDO::PGSQL_ATTR_DISABLE_PREPARES, $value);
+                            $connections[$i]->setAttribute(\PDO::PGSQL_ATTR_DISABLE_PREPARES, $value);
                         }
                     } else {
                         // Other connections: Use default pattern
@@ -80,16 +68,16 @@ class PdoSegfaultHandler implements Handler
                 
                 // Run a query on each connection
                 $stmt = $connections[$i]->query("SELECT $i as test_$i");
-                $results[$i] = $stmt->fetch(PDO::FETCH_ASSOC);
+                $results[$i] = $stmt->fetch(\PDO::FETCH_ASSOC);
             }
             
-            // ======== SEGFAULT TRIGGER ATTEMPT 2 ========
-            // Rapidly toggle the attribute and run prepared statements, which is a common scenario
+            // ======== TEST 2: TOGGLE ATTRIBUTE ========
             error_log('LAMBDA DEBUG: Creating connection for prepared statement tests...');
-            $prep_pdo = new PDO($dsn, $username, $password);
-            $prep_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $prep_pdo = new \PDO($dsn, $username, $password);
+            $prep_pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             
             // Toggle the attribute a few times while using prepared statements
+            $toggle_results = [];
             for ($i = 0; $i < 5; $i++) {
                 try {
                     // Set attribute to either true or false
@@ -101,7 +89,7 @@ class PdoSegfaultHandler implements Handler
                     $stmt = $prep_pdo->prepare("SELECT :param AS toggle_result");
                     $stmt->bindValue(':param', $i);
                     $stmt->execute();
-                    $toggle_results[$i] = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $toggle_results[$i] = $stmt->fetch(\PDO::FETCH_ASSOC);
                     
                     // Immediately close the statement
                     $stmt = null;
@@ -110,9 +98,7 @@ class PdoSegfaultHandler implements Handler
                 }
             }
             
-            // ======== SEGFAULT TRIGGER ATTEMPT 3 ========
-            // Keep references to a connection while creating new ones
-            // This can sometimes cause issues with memory management
+            // ======== TEST 3: CONNECTION MANAGEMENT ========
             error_log('LAMBDA DEBUG: Testing multiple connection creation with lingering references...');
             $lingering_connections = [];
             
@@ -120,7 +106,7 @@ class PdoSegfaultHandler implements Handler
             for ($i = 0; $i < 10; $i++) {
                 try {
                     // Create a new connection
-                    $new_pdo = new PDO($dsn, $username, $password);
+                    $new_pdo = new \PDO($dsn, $username, $password);
                     
                     // Every 3rd connection we'll keep a reference to
                     if ($i % 3 === 0) {
@@ -132,7 +118,7 @@ class PdoSegfaultHandler implements Handler
                         
                         // Run a query
                         $stmt = $new_pdo->query("SELECT $i AS lingering_test");
-                        $lingering_results[$i] = $stmt->fetch(PDO::FETCH_ASSOC);
+                        $lingering_results[$i] = $stmt->fetch(\PDO::FETCH_ASSOC);
                     } else {
                         // Just discard it
                         error_log("LAMBDA DEBUG: Discarding connection $i");
@@ -155,7 +141,7 @@ class PdoSegfaultHandler implements Handler
                 try {
                     // Run one query before closing
                     $stmt = $conn->query("SELECT 'cleanup' AS cleanup_test");
-                    $cleanup_result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $cleanup_result = $stmt->fetch(\PDO::FETCH_ASSOC);
                     
                     // Explicitly close resources
                     $stmt = null;
@@ -169,43 +155,37 @@ class PdoSegfaultHandler implements Handler
             
             // Final verification connection
             error_log('LAMBDA DEBUG: Creating final verification connection...');
-            $final_pdo = new PDO($dsn, $username, $password);
-            $final_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $final_pdo = new \PDO($dsn, $username, $password);
+            $final_pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $final_stmt = $final_pdo->query('SELECT 999 as final');
-            $final_result = $final_stmt->fetch(PDO::FETCH_ASSOC);
+            $final_result = $final_stmt->fetch(\PDO::FETCH_ASSOC);
             
-            // Create response
+            // Return test results
             return [
-                'statusCode' => 200,
-                'body' => json_encode([
-                    'message' => 'Extensive PDO PostgreSQL tests completed without segfault',
-                    'connection_count' => count($connections) + count($lingering_connections) + 1,
-                    'final_result' => $final_result,
-                    'notes' => [
-                        'If you see this message, the handler completed without a segfault',
-                        'Note: "Module pdo_pgsql already loaded" warnings may appear in logs',
-                        'The unusual runtime exit may still occur after response is sent'
-                    ]
-                ], JSON_PRETTY_PRINT),
-                'headers' => ['Content-Type' => 'application/json']
+                'message' => 'PDO PostgreSQL test completed successfully',
+                'connection_count' => count($connections) + count($lingering_connections) + 1,
+                'final_result' => $final_result,
+                'environment' => [
+                    'php_version' => PHP_VERSION,
+                    'sapi_name' => php_sapi_name(),
+                    'os' => PHP_OS
+                ],
+                'notes' => [
+                    'Test completed without errors',
+                    'Multiple PDO connections created and used successfully',
+                    'Function URL and event invocation both supported'
+                ]
             ];
             
         } catch (\Throwable $e) {
             error_log('LAMBDA ERROR: ' . $e->getMessage());
             
             return [
-                'statusCode' => 500,
-                'body' => json_encode([
-                    'error' => 'Error during PDO PostgreSQL segfault attempts',
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ], JSON_PRETTY_PRINT),
-                'headers' => ['Content-Type' => 'application/json']
+                'error' => 'Error during PDO PostgreSQL tests',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ];
         }
     }
 }
-
-// Return the handler to Lambda
-return new PdoSegfaultHandler();

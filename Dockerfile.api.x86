@@ -1,4 +1,4 @@
-FROM bref/php-82:2
+FROM bref/php-82-fpm-dev:2
 
 WORKDIR /var/task
 
@@ -6,4 +6,4 @@ WORKDIR /var/task
 # Create the symlink in the Dockerfile to make it explicit
 COPY php/conf.d/pdo_extension.ini.sample /opt/bref/etc/php/conf.d/99-pdo_pgsql.ini
 
-ENTRYPOINT ["/var/task/entrypoint.sh"]
+ENTRYPOINT ["/var/task/api-entrypoint.sh"]

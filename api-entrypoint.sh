@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-# Simple entrypoint for Lambda container using Bref dev server
-echo "Starting Lambda container with Bref development server..."
+# Entrypoint for API Gateway Lambda container using Bref dev server
+echo "Starting Lambda container with Bref API Gateway emulation..."
 
 # Install Composer dependencies if they don't exist - do this first, before any other operations
 if [ ! -d "/var/task/vendor" ]; then
@@ -45,23 +45,13 @@ php -r "echo 'PDO::PGSQL_ATTR_DISABLE_PREPARES defined: ' . (defined('PDO::PGSQL
 echo "Running PDO PostgreSQL extension test..."
 php "${LAMBDA_TASK_ROOT}/test-pdo-pgsql.php" || echo "PDO PostgreSQL test failed"
 
-# Check PHP modules and extensions for completeness
-echo "Listing all loaded PHP modules:"
-php -m
-
-# Print information about PHP and system
-echo "PHP Version and Configuration:"
-php -i | grep -E 'PHP Version|Architecture|System|PDO drivers|PDO Support|pdo_pgsql'
-
-# Start PHP server for HTTP invocation
-echo "Starting HTTP server for Lambda function emulation..."
+# Start Bref API Gateway emulation with the specified handler
+echo "Starting Bref API Gateway emulation for ${HANDLER}..."
 cd ${LAMBDA_TASK_ROOT}
-echo ""
-echo "Handler file: ${HANDLER}"
-echo ""
-echo "Using the provided invoke script:"
-echo "./invoke.sh local $HOSTNAME"
-echo ""
 
-# Start the PHP server with the handler from environment variable
-exec php -S 0.0.0.0:8000 "${HANDLER}"
+# Run the bref-dev-server with the specified function name (derived from handler filename)
+FUNCTION_NAME=$(echo "${HANDLER}" | sed 's/\.php$//' | sed 's/-/_/g')
+echo "Using function name: ${FUNCTION_NAME}"
+
+# Execute bref-dev-server
+exec vendor/bin/bref-dev-server run

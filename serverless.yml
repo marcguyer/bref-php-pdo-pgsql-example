@@ -22,9 +22,20 @@ plugins:
 
 functions:
   pdo-pgsql-test:
-    handler: index.php
-    description: 'Test case for PDO PostgreSQL issues in Lambda'
+    handler: function-url-handler.php
+    description: 'Test case for PDO PostgreSQL with Function URL'
     timeout: 30
     memorySize: 512
     runtime: php-82
     architecture: arm64
+    url: true
+    
+  pdo-pgsql-api:
+    handler: api-handler.php
+    description: 'Test case for PDO PostgreSQL with API Gateway'
+    timeout: 30
+    memorySize: 512
+    runtime: php-82
+    architecture: arm64
+    events:
+      - httpApi: '*'
