@@ -1,0 +1,17 @@
+{
+    "name": "pdo/pgsql-warning-reproduction",
+    "description": "Minimal reproduction of PDO PostgreSQL module already loaded warning",
+    "type": "project",
+    "license": "MIT",
+    "config": {
+        "platform": {
+            "php": "8.2.0"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "bref/bref": "^2.0"
+    }
+}

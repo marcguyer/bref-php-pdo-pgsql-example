@@ -1,0 +1,10 @@
+; Standard logging settings
+log_errors=1
+display_startup_errors=1
+error_reporting=E_ALL
+
+; NOTE: DO NOT load pdo_pgsql here as it's already loaded by default on ARM64
+; extension=pdo_pgsql
+
+; Additional PHP settings
+zend.exception_ignore_args=0

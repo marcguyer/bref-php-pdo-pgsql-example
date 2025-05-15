@@ -1,0 +1,62 @@
+services:
+  # PostgreSQL database for testing
+  postgres:
+    image: ghcr.io/baosystems/postgis:16-3.4 # multi-arch image
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Lambda container using architecture detected by detect-arch.sh
+  lambda:
+    build:
+      context: .
+      dockerfile: ${LAMBDA_DOCKERFILE:-Dockerfile}
+    platform: ${LAMBDA_PLATFORM:-linux/arm64}  # Default to ARM64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      HANDLER: index.php
+      _HANDLER: index.php
+      # RIE debug environment variables
+      AWS_LAMBDA_RUNTIME_API_DEBUG: "1"
+      RAPID_DEBUG: "1"
+      AWS_LAMBDA_DEBUG_LOG: "/tmp/lambda-debug.log"
+    volumes:
+      - .:/var/task
+
+  # Lambda container using x86_64 (for testing emulation on ARM64)
+  lambda-x86:
+    build:
+      context: .
+      dockerfile: Dockerfile.x86
+    platform: linux/amd64  # Always x86_64
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      HANDLER: index.php
+      _HANDLER: index.php
+      # RIE debug environment variables
+      AWS_LAMBDA_RUNTIME_API_DEBUG: "1"
+      RAPID_DEBUG: "1"
+      AWS_LAMBDA_DEBUG_LOG: "/tmp/lambda-debug.log"
+    volumes:
+      - .:/var/task

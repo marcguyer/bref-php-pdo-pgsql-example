@@ -1,0 +1,30 @@
+service: pdo-pgsql-issue-reproduction
+
+provider:
+  name: aws
+  region: ${env:AWS_REGION, 'eu-central-1'}
+  vpc:
+    # Single subnet is sufficient for this test
+    securityGroupIds:
+      - ${env:VPC_SECURITY_GROUP_ID}
+    subnetIds:
+      - ${env:VPC_SUBNET_ID}
+  environment:
+    # Database connection details
+    DB_HOST: ${env:DB_HOST}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_NAME: ${env:DB_NAME, 'postgres'}
+    DB_USERNAME: ${env:DB_USERNAME}
+    DB_PASSWORD: ${env:DB_PASSWORD}
+
+plugins:
+  - ./vendor/bref/bref
+
+functions:
+  pdo-pgsql-test:
+    handler: index.php
+    description: 'Test case for PDO PostgreSQL issues in Lambda'
+    timeout: 30
+    memorySize: 512
+    runtime: php-82
+    architecture: arm64

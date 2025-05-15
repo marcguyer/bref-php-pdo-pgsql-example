@@ -1,0 +1,23 @@
+# Environment files
+.env
+
+# Dependencies
+/vendor/
+composer.phar
+
+# Local development files
+.php-cs-fixer.cache
+
+# Logs
+/test/sam-logs/
+*.log
+
+# Temporary files
+.DS_Store
+.phpunit.result.cache
+Thumbs.db
+
+# Lambda temporary files
+/tmp/
+
+/.idea/
